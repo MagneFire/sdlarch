@@ -8,8 +8,8 @@
 
 static uint32_t frame_width = 0;
 static uint32_t frame_height = 0;
-uint32_t screen_width = 400;
-uint32_t screen_height = 400;
+uint32_t screen_width;
+uint32_t screen_height;
 float m[4][4];
 
 //IMPORTANT, make sure this function is commented out at runtime
@@ -219,15 +219,10 @@ static ShaderInfo shader;
 static GLuint buffers[3];
 static GLuint textures[2];
 
-static int dis_width;
-static int dis_height;
+//static int dis_width;
+//static int dis_height;
 static float proj[4][4];
-static float tex_width, tex_height;
 static float gmw, gmh;
-
-
-#define TEX_WIDTH tex_width
-#define TEX_HEIGHT tex_height
 
 static void gles2_destroy()
 {
@@ -249,7 +244,8 @@ void SetOrtho(GLfloat m[4][4], GLfloat left, GLfloat right, GLfloat bottom, GLfl
 	m[3][3] = 1;
 }
 
-void ortho2d(float m[4][4], float left, float right, float bottom, float top) {
+void ortho2d(float m[4][4], float left, float right, float bottom, float top)
+{
     m[0][0] = 1; m[0][1] = 0; m[0][2] = 0; m[0][3] = 0;
     m[1][0] = 0; m[1][1] = 1; m[1][2] = 0; m[1][3] = 0;
     m[2][0] = 0; m[2][1] = 0; m[2][2] = 1; m[2][3] = 0;
@@ -261,9 +257,9 @@ void ortho2d(float m[4][4], float left, float right, float bottom, float top) {
     m[3][0] = -(right + left) / (right - left);
     m[3][1] = -(top + bottom) / (top - bottom);
 }
-#define RGB15(r, g, b)  (((r) << (5+6)) | ((g) << 6) | (b))
 
-void video_shader_init() {
+void video_shader_init()
+{
 	memset(&shader, 0, sizeof(ShaderInfo));
 	shader.program = CreateProgram(vertex_shader, fragment_shader_none);
 	//shader.program = CreateProgram(vertex_shader, fragment_shader);
@@ -282,53 +278,16 @@ void video_shader_init() {
     glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, (float*)m);
 }
 
-
-
-void video_update_vertices(const struct retro_game_geometry *geom, uint32_t width, uint32_t height) {
-
-/*
-#define	TEX_WIDTH	512
-#define	TEX_HEIGHT	256
-#define	WIDTH		400
-#define	HEIGHT		400
-
-#define	min_u		24.0f/TEX_WIDTH
-#define	max_u		(float)WIDTH/TEX_WIDTH - min_u
-#define	min_v		0.0f
-#define	max_v		(float)HEIGHT/TEX_HEIGHT*/
+void video_update_vertices(const struct retro_game_geometry *geom, uint32_t width, uint32_t height)
+{
 	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
 	printf("screen_width: %d\tscreen_height: %d\r\n", screen_width, screen_height);
 	printf("width: %d\theight: %d\r\n", width, height);
 	printf("max_width: %d\tmax_height: %d\r\n", geom->max_width, geom->max_height);
-/*
-	GLfloat max_u = 1;//(float)screen_width/geom->max_width;
-	GLfloat max_v = 1;//(float)screen_height/geom->max_height;
-
-	printf("width: %d\theight: %d\r\n", width, height);
-	printf("max_width: %d\tmax_height: %d\r\n", geom->max_width, geom->max_height);
-	printf("max_u: %f\tmax_v: %f\r\n", max_u, max_v);
-
-	memset(uvs,0,sizeof(GLfloat)*8);*/
-	/*uvs[0]=min_u; uvs[1]=min_v;
-	uvs[2]=max_u; uvs[3]=min_v;
-	uvs[4]=max_u; uvs[5]=max_v;
-	uvs[6]=min_u; uvs[7]=max_v;*/
-/*
-	uvs[3]=max_v;
-	uvs[4]=max_u;
-	uvs[5]=max_v;
-	uvs[6]=max_u;
-*/
-	//Create_uvs(uvs, (float)geom->max_width/TEX_WIDTH, (float)geom->max_height/TEX_HEIGHT);
 
 	float min_u = 0.0f;
-	//float max_u=(float)bitmap_width/tex_width;
-	//float max_u = 0.5f;//(float)geom->max_width/TEX_WIDTH;
 	float max_u = (float)width/geom->max_width;
 	float min_v = 0.0f;
-	//float max_v=(float)bitmap_height/tex_height;
-	//float max_v = 0.5f;//(float)geom->max_height/TEX_HEIGHT;
-	//float max_v = (float)(float)height/geom->max_height;
 	float max_v = (float)width/geom->max_width;//(float)height/geom->max_height;
 
 	uvs[0] = min_u;
@@ -340,27 +299,20 @@ void video_update_vertices(const struct retro_game_geometry *geom, uint32_t widt
 	uvs[6] = min_u;
 	uvs[7] = max_v;
 
-
 	glBindBuffer(GL_ARRAY_BUFFER, buffers[1]);
 	glBufferData(GL_ARRAY_BUFFER, kVertexCount * sizeof(GLfloat) * 2, uvs, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t height, uint32_t filter) {
+void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t height, uint32_t filter)
+{
 	printf("video_init\r\n");
-	tex_width = geom->max_width;
-	tex_height = geom->max_height;
 	gmw = geom->max_width;
 	gmh = geom->max_height;
 	float op_zoom = (float)(width)/(float)width;
 	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, geom->max_width, geom->max_height, 0, g_video.pixtype, g_video.pixfmt, NULL);
-
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEX_WIDTH, TEX_HEIGHT, 0, g_video.pixtype, g_video.pixfmt, NULL);
-	//Create_uvs(uvs, (float)width/TEX_WIDTH, (float)height/TEX_HEIGHT);
-	//Create_uvs(uvs, ((float)width)/((float)geom->max_width), ((float)height)/((float)geom->max_height));
-	//Create_uvs(uvs, ((float)width)/((float)geom->max_width), ((float)height)/((float)geom->max_height));
 
 	glGenBuffers(3, buffers);
 	glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
@@ -380,14 +332,13 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	glDisable(GL_BLEND);
 	glDisable(GL_DITHER);
 
-
 	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
 
 	float sx = 1.0f, sy = 1.0f;
 	int h = geom->max_height;
 	int w = geom->max_width;
-	dis_width = screen_width;
-	dis_height = screen_height;
+	//dis_width = h;
+	//dis_height = w;
 	/*int rr=(screen_height*10/height);
 	h = (height*rr)/10;
 	w = (width*rr)/10;
@@ -397,7 +348,7 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	    w = (width*rr)/10;
 	}
 	glViewport((screen_width-w)/2, (screen_height-h)/2, w, h);*/
-	glViewport(0, 0, w, h);
+	glViewport(0, 0, screen_width, screen_height);
 
 	float a = (float)screen_width/(float)screen_height;
 	float a0 = (float)geom->max_width/(float)geom->max_height;
@@ -406,7 +357,6 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	else
 		sy = a/a0;
 	SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, sx*op_zoom, sy*op_zoom);
-	//video_set_filter(filter);
 }
 
 void video_close()
@@ -433,20 +383,17 @@ static void gles2_DrawQuad(const ShaderInfo *sh)
 	glDrawElements(GL_TRIANGLES, kIndexCount, GL_UNSIGNED_SHORT, 0); SHOW_ERROR
 }
 
-uint32_t henk = 0;
-
 void video_draw(const void *pixels, unsigned width, unsigned height, unsigned pitch)
 {
 	if(!shader.program)
 		return;
-
 
 	if (pitch != g_video.pitch) {
 		g_video.pitch = pitch;
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
 	}
 	glClear(GL_COLOR_BUFFER_BIT); SHOW_ERROR
-	glViewport(0, 0, dis_width, dis_height); SHOW_ERROR
+	//glViewport(0, 0, dis_width, dis_height); SHOW_ERROR
 
 	glDisable(GL_BLEND); SHOW_ERROR
 	glUseProgram(shader.program); SHOW_ERROR
@@ -459,31 +406,8 @@ void video_draw(const void *pixels, unsigned width, unsigned height, unsigned pi
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels);
 		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, (int)(width-height)/2, width, height, g_video.pixtype, g_video.pixfmt, pixels);
 	}
-	//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels); SHOW_ERROR
-	//gles2_DrawQuad(&shader);
-	{
-		glUniform1i(shader.u_texture, 0); SHOW_ERROR
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); SHOW_ERROR 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); SHOW_ERROR
-
-		glBindBuffer(GL_ARRAY_BUFFER, buffers[0]); SHOW_ERROR
-		glVertexAttribPointer(shader.a_position, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL); SHOW_ERROR
-		glEnableVertexAttribArray(shader.a_position); SHOW_ERROR
-
-		glBindBuffer(GL_ARRAY_BUFFER, buffers[1]); SHOW_ERROR
-		glVertexAttribPointer(shader.a_texcoord, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), NULL); SHOW_ERROR
-		glEnableVertexAttribArray(shader.a_texcoord); SHOW_ERROR
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[2]); SHOW_ERROR
-
-		glDrawElements(GL_TRIANGLES, kIndexCount, GL_UNSIGNED_SHORT, 0); SHOW_ERROR
-	}
-
-
+	gles2_DrawQuad(&shader);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0); SHOW_ERROR
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); SHOW_ERROR
-	/*SDL_GetWindowSize(g_win, &screen_width, &screen_height);
-	printf("screen_width: %d\tscreen_height: %d\r\n", screen_width, screen_height);
-	printf("width: %d\theight: %d\r\n", width, height);*/
 }

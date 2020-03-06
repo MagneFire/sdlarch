@@ -204,32 +204,22 @@ static void create_window(int width, int height) {
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
-
-  /*  if (g_video.hw.context_type == RETRO_HW_CONTEXT_OPENGL_CORE || g_video.hw.version_major >= 3) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, g_video.hw.version_major);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, g_video.hw.version_minor);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
-    }
-*/
-
     switch (g_video.hw.context_type) {
-//    case RETRO_HW_CONTEXT_OPENGL_CORE:
-//        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-//        break;
+    case RETRO_HW_CONTEXT_OPENGL_CORE:
+        //SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        break;
     case RETRO_HW_CONTEXT_OPENGLES2:
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
         break;
-//    case RETRO_HW_CONTEXT_OPENGL:
-//        if (g_video.hw.version_major >= 3)
-//            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-//        break;
+    case RETRO_HW_CONTEXT_OPENGL:
+        if (g_video.hw.version_major >= 3)
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+        break;
     default:
         fprintf(stdout, "Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)\r\n", g_video.hw.context_type);
         //die("Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)", g_video.hw.context_type);
     }
-//SDL_WINDOW_FULLSCREEN
-        //g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
-        g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
+    g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
 
 	if (!g_win)
         die("Failed to create window: %s", SDL_GetError());
@@ -250,8 +240,6 @@ static void create_window(int width, int height) {
     fprintf(stderr, "GL_SHADING_LANGUAGE_VERSION: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
     fprintf(stderr, "GL_VERSION: %s\n", glGetString(GL_VERSION));
 
-
-    //init_shaders();
     video_shader_init();
     //video_init(width, height, 0);
 
@@ -685,7 +673,7 @@ int main(int argc, char *argv[]) {
 
     g_video.hw.version_major = 4;
     g_video.hw.version_minor = 5;
-    g_video.hw.context_type  = RETRO_HW_CONTEXT_OPENGL_CORE;
+    g_video.hw.context_type  = RETRO_HW_CONTEXT_OPENGLES2;
     g_video.hw.context_reset   = noop;
     g_video.hw.context_destroy = noop;
 
