@@ -228,6 +228,7 @@ static void create_window(int width, int height) {
         //die("Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)", g_video.hw.context_type);
     }
 //SDL_WINDOW_FULLSCREEN
+        //g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
         g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
 
 	if (!g_win)
@@ -327,7 +328,8 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	g_video.clip_w = geom->base_width;
 	g_video.clip_h = geom->base_height;
     //video_init(geom, geom->max_width, geom->max_height, 0);
-    video_init(geom, geom->max_width, geom->max_height, 0);
+    video_init(geom, nwidth, nheight, 0);
+    //video_init(geom, geom->max_width, geom->max_height, 0);
 
 	refresh_vertex_data();
 

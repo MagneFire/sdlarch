@@ -1,8 +1,3 @@
-/*
-#include "GLES/gl.h"
-#include "EGL/egl.h"
-#include "EGL/eglext.h"
-#include "GLES2/gl2.h"*/
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,8 +11,6 @@ static uint32_t frame_height = 0;
 uint32_t screen_width = 400;
 uint32_t screen_height = 400;
 float m[4][4];
-
-
 
 //IMPORTANT, make sure this function is commented out at runtime
 //as it has a big performance impact!
@@ -235,16 +228,6 @@ static float gmw, gmh;
 
 #define TEX_WIDTH tex_width
 #define TEX_HEIGHT tex_height
-/*
-void video_set_filter(uint32_t filter) {
-	if (filter==0) {
-	    filter_min = GL_NEAREST;
-	    filter_mag = GL_NEAREST;
-	} else  {
-	    filter_min = GL_LINEAR;
-	    filter_mag = GL_LINEAR;
-	}
-}*/
 
 static void gles2_destroy()
 {
@@ -295,12 +278,8 @@ void video_shader_init() {
 
 	glUniform1i(shader.u_texture, 0);
 
-	/*if (g_video.hw.bottom_left_origin)
-		ortho2d(m, -1, 1, 1, -1);
-	else
-		ortho2d(m, -1, 1, -1, 1);*/
 	ortho2d(m, -1, 1, 1, -1);
-    	glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, (float*)m);
+    glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, (float*)m);
 }
 
 
@@ -318,6 +297,7 @@ void video_update_vertices(const struct retro_game_geometry *geom, uint32_t widt
 #define	min_v		0.0f
 #define	max_v		(float)HEIGHT/TEX_HEIGHT*/
 	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
+	printf("screen_width: %d\tscreen_height: %d\r\n", screen_width, screen_height);
 	printf("width: %d\theight: %d\r\n", width, height);
 	printf("max_width: %d\tmax_height: %d\r\n", geom->max_width, geom->max_height);
 /*
@@ -343,10 +323,13 @@ void video_update_vertices(const struct retro_game_geometry *geom, uint32_t widt
 
 	float min_u = 0.0f;
 	//float max_u=(float)bitmap_width/tex_width;
-	float max_u = (float)geom->max_width/TEX_WIDTH;
+	//float max_u = 0.5f;//(float)geom->max_width/TEX_WIDTH;
+	float max_u = (float)width/geom->max_width;
 	float min_v = 0.0f;
 	//float max_v=(float)bitmap_height/tex_height;
-	float max_v = (float)geom->max_height/TEX_HEIGHT;
+	//float max_v = 0.5f;//(float)geom->max_height/TEX_HEIGHT;
+	//float max_v = (float)(float)height/geom->max_height;
+	float max_v = (float)width/geom->max_width;//(float)height/geom->max_height;
 
 	uvs[0] = min_u;
 	uvs[1] = min_v;
@@ -365,28 +348,14 @@ void video_update_vertices(const struct retro_game_geometry *geom, uint32_t widt
 
 void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t height, uint32_t filter) {
 	printf("video_init\r\n");
-	tex_width = width;
-	tex_height = height;
+	tex_width = geom->max_width;
+	tex_height = geom->max_height;
 	gmw = geom->max_width;
 	gmh = geom->max_height;
 	float op_zoom = (float)(width)/(float)width;
 	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
-	// OLD
-	//glGenTextures(1, textures);
-	//glBindTexture(GL_TEXTURE_2D, textures[0]);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEX_WIDTH, TEX_HEIGHT, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, NULL);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEX_WIDTH, TEX_HEIGHT, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, NULL);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, geom->max_width, geom->max_height, 0, g_video.pixtype, g_video.pixfmt, NULL);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEX_WIDTH, TEX_HEIGHT, 0, g_video.pixtype, g_video.pixfmt, NULL);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, geom->max_width, geom->max_height, 0, g_video.pixtype, g_video.pixfmt, NULL);
-
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEX_WIDTH, TEX_HEIGHT, 0, g_video.pixtype, g_video.pixfmt, NULL);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, g_video.pixtype, g_video.pixfmt, NULL);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, geom->max_width, geom->max_height, 0, g_video.pixtype, g_video.pixfmt, NULL);
-	//Create_uvs(uvs, (float)width/geom->max_width, (float)height/geom->max_height);
-
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, geom->max_width, geom->max_height, 0, g_video.pixtype, g_video.pixfmt, NULL);
 
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEX_WIDTH, TEX_HEIGHT, 0, g_video.pixtype, g_video.pixfmt, NULL);
 	//Create_uvs(uvs, (float)width/TEX_WIDTH, (float)height/TEX_HEIGHT);
@@ -415,8 +384,8 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
 
 	float sx = 1.0f, sy = 1.0f;
-	int h = height;
-	int w = width;
+	int h = geom->max_height;
+	int w = geom->max_width;
 	dis_width = screen_width;
 	dis_height = screen_height;
 	/*int rr=(screen_height*10/height);
@@ -431,7 +400,7 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	glViewport(0, 0, w, h);
 
 	float a = (float)screen_width/(float)screen_height;
-	float a0 = (float)width/(float)height;
+	float a0 = (float)geom->max_width/(float)geom->max_height;
 	if(a > a0)
 		sx = a0/a;
 	else
@@ -443,25 +412,13 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 void video_close()
 {
 	gles2_destroy();
-	// Release OpenGL resources
-	//eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
-	//eglDestroySurface( display, surface );
-	//eglDestroyContext( display, context );
-	//eglTerminate( display );
 }
 
 static void gles2_DrawQuad(const ShaderInfo *sh)
 {
 	glUniform1i(sh->u_texture, 0); SHOW_ERROR
-/*
-	if (Settings.DisplaySmoothStretch) {
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); SHOW_ERROR 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); SHOW_ERROR
-	}
-	else {*/
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); SHOW_ERROR 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); SHOW_ERROR
-	//}
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); SHOW_ERROR 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); SHOW_ERROR
 
 	glBindBuffer(GL_ARRAY_BUFFER, buffers[0]); SHOW_ERROR
 	glVertexAttribPointer(sh->a_position, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL); SHOW_ERROR
@@ -498,86 +455,35 @@ void video_draw(const void *pixels, unsigned width, unsigned height, unsigned pi
 	glActiveTexture(GL_TEXTURE0); SHOW_ERROR
 	glBindTexture(GL_TEXTURE_2D, g_video.tex_id); SHOW_ERROR
 	if (pixels && pixels != RETRO_HW_FRAME_BUFFER_VALID) {
-		if (henk < 1) {
-			
-		struct retro_system_av_info av = {0};
-		g_retro.retro_get_system_av_info(&av);
-		//video_init(&av.geometry, width, height, 0);
-		printf("width: %d\theight: %d\r\n", width, height);
-		//gmw = 0;
-		//gmh = 0;
-		henk++;
-
-		}
-		//SDL_SetWindowSize(g_win, width, height);
-    		/*SDL_DisplayMode mode;
-		SDL_GetWindowDisplayMode(g_win, &mode);
-		mode.h = height;
-		mode.w = width;
-		SDL_SetWindowDisplayMode(g_win, &mode);*/
 		//printf("%d %d\r\n", (int)(width-gmw)/2, (int)(height-gmh)/2);
-		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, (int)(gmw-width)/2, (int)(gmh-height)/2, width, height, g_video.pixtype, g_video.pixfmt, pixels);
-		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame_width, frame_height, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixels);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, (int)(width-height)/2, width, height, g_video.pixtype, g_video.pixfmt, pixels);
 	}
 	//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels); SHOW_ERROR
-	gles2_DrawQuad(&shader);
+	//gles2_DrawQuad(&shader);
+	{
+		glUniform1i(shader.u_texture, 0); SHOW_ERROR
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); SHOW_ERROR 
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); SHOW_ERROR
+
+		glBindBuffer(GL_ARRAY_BUFFER, buffers[0]); SHOW_ERROR
+		glVertexAttribPointer(shader.a_position, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL); SHOW_ERROR
+		glEnableVertexAttribArray(shader.a_position); SHOW_ERROR
+
+		glBindBuffer(GL_ARRAY_BUFFER, buffers[1]); SHOW_ERROR
+		glVertexAttribPointer(shader.a_texcoord, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), NULL); SHOW_ERROR
+		glEnableVertexAttribArray(shader.a_texcoord); SHOW_ERROR
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[2]); SHOW_ERROR
+
+		glDrawElements(GL_TRIANGLES, kIndexCount, GL_UNSIGNED_SHORT, 0); SHOW_ERROR
+	}
+
+
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0); SHOW_ERROR
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); SHOW_ERROR
-
-
-	return;
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	glUseProgram(shader.program);
-
-	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
-
-
-	if (pixels && pixels != RETRO_HW_FRAME_BUFFER_VALID) {
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels);
-		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame_width, frame_height, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixels);
-	}
-	glActiveTexture(GL_TEXTURE0);
-	glUniform1i(shader.u_texture, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	//glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE);
-	glGenerateMipmap(GL_TEXTURE_2D);
-
-	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
-	glViewport(0, 0, screen_width, screen_height);
-
-/*
-	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
-
-	int h = height;
-	int w = width;
-	int rr=(screen_height*10/height);
-	h = (height*rr)/10;
-	w = (width*rr)/10;
-	if (w>screen_width) {
-	    rr = (screen_width*10/width);
-	    h = (height*rr)/10;
-	    w = (width*rr)/10;
-	}
-	glViewport((screen_width-w)/2, (screen_height-h)/2, w, h);*/
-
-	glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
-	glVertexAttribPointer(shader.a_position, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
-	glEnableVertexAttribArray(shader.a_position);
-
-	glBindBuffer(GL_ARRAY_BUFFER, buffers[1]);
-	glVertexAttribPointer(shader.a_texcoord, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), NULL);
-	glEnableVertexAttribArray(shader.a_texcoord);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[2]);
-	glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, (const GLfloat * )&proj);
-    	//glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, (float*)m);
-	glDrawElements(GL_TRIANGLES, kIndexCount, GL_UNSIGNED_SHORT, 0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	//glFlush();
+	/*SDL_GetWindowSize(g_win, &screen_width, &screen_height);
+	printf("screen_width: %d\tscreen_height: %d\r\n", screen_width, screen_height);
+	printf("width: %d\theight: %d\r\n", width, height);*/
 }
