@@ -52,10 +52,6 @@ typedef struct GRetro {
 extern struct GRetro g_retro;
 
 extern SDL_Window *g_win;
-extern GLuint pixfmt;
-extern GLuint pixtype;
-extern GLuint bpp;
-extern GLuint bpp_size;
 
 
 void SetOrtho(GLfloat m[4][4], GLfloat left, GLfloat right, GLfloat bottom, GLfloat top, GLfloat near, GLfloat far, GLfloat scale_x, GLfloat scale_y);

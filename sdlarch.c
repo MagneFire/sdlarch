@@ -1,4 +1,3 @@
-
 #include <SDL.h>
 #include "libretro.h"
 #include "glad.h"
@@ -16,36 +15,6 @@ static float g_scale = 1;
 bool running = true;
 
 struct GVideo g_video  = {0};
-
-static struct {
-    /*GLuint vao;
-    GLuint vbo;*/
-    GLuint program;
-
-    GLint i_pos;
-    GLint i_coord;
-    GLint u_tex;
-    GLint u_mvp;
-
-} g_shader = {0};
-
-static const char* g_vshader_src =
-	"attribute vec2 i_pos;								\n"
-	"attribute vec2 i_coord;								\n"
-	"varying vec2 o_coord;						\n"
-	"uniform mat4 u_mvp;								\n"
-	"void main()											\n"
-	"{														\n"
-	"	o_coord = i_coord;							\n"
-    "   gl_Position = vec4(i_pos, 0.0, 1.0) * u_mvp;\n"
-	"}														\n";
-static const char *g_fshader_src =
-    "varying vec2 o_coord;\n"
-    "uniform sampler2D u_tex;\n"
-    "void main() {\n"
-        "gl_FragColor = texture2D(u_tex, o_coord);\n"
-    "}";
-    
     
 struct GRetro g_retro;
 
@@ -95,109 +64,6 @@ static void die(const char *fmt, ...) {
 	exit(EXIT_FAILURE);
 }
 
-static GLuint compile_shader(unsigned type, unsigned count, const char **strings) {
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, count, strings, NULL);
-    glCompileShader(shader);
-
-    GLint status;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-
-    if (status == GL_FALSE) {
-        char buffer[4096];
-        glGetShaderInfoLog(shader, sizeof(buffer), NULL, buffer);
-        die("Failed to compile %s shader: %s", type == GL_VERTEX_SHADER ? "vertex" : "fragment", buffer);
-    }
-
-    return shader;
-}
-
-static void init_shaders() {
-    GLuint vshader = compile_shader(GL_VERTEX_SHADER, 1, &g_vshader_src);
-    GLuint fshader = compile_shader(GL_FRAGMENT_SHADER, 1, &g_fshader_src);
-    GLuint program = glCreateProgram();
-
-    SDL_assert(program);
-
-    glAttachShader(program, vshader);
-    glAttachShader(program, fshader);
-    glLinkProgram(program);
-
-    glDeleteShader(vshader);
-    glDeleteShader(fshader);
-
-    glValidateProgram(program);
-
-    GLint status;
-    glGetProgramiv(program, GL_LINK_STATUS, &status);
-
-    if(status == GL_FALSE) {
-        char buffer[4096];
-        glGetProgramInfoLog(program, sizeof(buffer), NULL, buffer);
-        die("Failed to link shader program: %s", buffer);
-    }
-
-    g_shader.program = program;
-    g_shader.i_pos   = glGetAttribLocation(program,  "i_pos");
-    g_shader.i_coord = glGetAttribLocation(program,  "i_coord");
-    g_shader.u_tex   = glGetUniformLocation(program, "u_tex");
-    g_shader.u_mvp   = glGetUniformLocation(program, "u_mvp");
-
-    //glGenVertexArrays(1, &g_shader.vao);
-    //glGenBuffers(1, &g_shader.vbo);
-
-    glUseProgram(g_shader.program);
-
-    glUniform1i(g_shader.u_tex, 0);
-
-    float m[4][4];
-    if (g_video.hw.bottom_left_origin)
-        ortho2d(m, -1, 1, 1, -1);
-    else
-        ortho2d(m, -1, 1, -1, 1);
-
-    glUniformMatrix4fv(g_shader.u_mvp, 1, GL_FALSE, (float*)m);
-
-    glUseProgram(0);
-}
-
-
-static void refresh_vertex_data() {
-    SDL_assert(g_video.tex_w);
-    SDL_assert(g_video.tex_h);
-    SDL_assert(g_video.clip_w);
-    SDL_assert(g_video.clip_h);
-
-    float bottom = (float)g_video.clip_h / g_video.tex_h;
-    float right  = (float)g_video.clip_w / g_video.tex_w;
-/*
-    float vertex_data[] = {
-        // pos, coord
-        -1.0f, -1.0f, 0.0f,  bottom, // left-bottom
-        -1.0f,  1.0f, 0.0f,  0.0f,   // left-top
-         1.0f, -1.0f, right,  bottom,// right-bottom
-         1.0f,  1.0f, right,  0.0f,  // right-top
-    };*/
-
-    //glBindVertexArray(g_shader.vao);
-/*
-    glBindBuffer(GL_ARRAY_BUFFER, g_shader.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_data), vertex_data, GL_STREAM_DRAW);
-
-    glEnableVertexAttribArray(g_shader.i_pos);
-    glEnableVertexAttribArray(g_shader.i_coord);
-    glVertexAttribPointer(g_shader.i_pos, 2, GL_FLOAT, GL_FALSE, sizeof(float)*4, 0);
-    glVertexAttribPointer(g_shader.i_coord, 2, GL_FLOAT, GL_FALSE, sizeof(float)*4, (void*)(2 * sizeof(float)));
-
-    //glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);*/
-}
-
-static void resize_cb(int w, int h) {
-	glViewport(0, 0, w, h);
-}
-
-
 static void create_window(int width, int height) {
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
@@ -241,12 +107,9 @@ static void create_window(int width, int height) {
     fprintf(stderr, "GL_VERSION: %s\n", glGetString(GL_VERSION));
 
     video_shader_init();
-    //video_init(width, height, 0);
 
     SDL_GL_SetSwapInterval(1);
     SDL_GL_SwapWindow(g_win); // make apitrace output nicer
-
-    //resize_cb(width, height);
 }
 
 
@@ -292,36 +155,12 @@ static void video_configure(const struct retro_game_geometry *geom) {
 		die("Failed to create the video texture");
 
 	g_video.pitch = geom->base_width * g_video.bpp;
-/*
-	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
-//	glPixelStorei(GL_UNPACK_ALIGNMENT, s_video.pixfmt == GL_UNSIGNED_INT_8_8_8_8_REV ? 4 : 2);
-//	glPixelStorei(GL_UNPACK_ROW_LENGTH, s_video.pitch / s_video.bpp);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, geom->max_width, geom->max_height, 0,
-			g_video.pixtype, g_video.pixfmt, NULL);
-
-	glBindTexture(GL_TEXTURE_2D, 0);*/
-
-
-
-
-
-    //init_framebuffer(geom->base_width, geom->base_height);
-
 	g_video.tex_w = geom->max_width;
 	g_video.tex_h = geom->max_height;
 	g_video.clip_w = geom->base_width;
 	g_video.clip_h = geom->base_height;
-    //video_init(geom, geom->max_width, geom->max_height, 0);
+
     video_init(geom, nwidth, nheight, 0);
-    //video_init(geom, geom->max_width, geom->max_height, 0);
-
-	refresh_vertex_data();
-
-    g_video.hw.context_reset();
 }
 
 
@@ -353,53 +192,6 @@ static bool video_set_pixel_format(unsigned format) {
 	}
 
 	return true;
-}
-
-
-static void video_refresh(const void *data, unsigned width, unsigned height, unsigned pitch) {
-    if (g_video.clip_w != width || g_video.clip_h != height)
-    {
-        printf("video_refresh: %d %d %d %d\r\n", g_video.clip_w, width, g_video.clip_h, height);
-		g_video.clip_h = height;
-		g_video.clip_w = width;
-
-		refresh_vertex_data();
-	}
-
-    video_draw(data, width, height, pitch);
-/*
-    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
-
-	//if (pitch != g_video.pitch) {
-	//	g_video.pitch = pitch;
-	//	glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
-	//}
-
-    if (data && data != RETRO_HW_FRAME_BUFFER_VALID) {
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
-						g_video.pixtype, g_video.pixfmt, data);
-	}
-
-    int w = 0, h = 0;
-    SDL_GetWindowSize(g_win, &w, &h);
-    glViewport(0, 0, w, h);
-
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glUseProgram(g_shader.program);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
-
-
-    //glBindVertexArray(g_shader.vao);
-    //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    //glBindVertexArray(0);
-
-    glUseProgram(0);*/
-
-    SDL_GL_SwapWindow(g_win);
 }
 
 static void video_deinit() {
@@ -457,7 +249,7 @@ static void core_log(enum retro_log_level level, const char *fmt, ...) {
 	if (level == 0)
 		return;
 
-	fprintf(stderr, "[%s] %s", levelstr[level], buffer);
+	fprintf(stderr, "[%s] %s\r\n", levelstr[level], buffer);
 	fflush(stderr);
 
 	if (level == RETRO_LOG_ERROR)
@@ -484,11 +276,16 @@ static bool core_environment(unsigned cmd, void *data) {
 	case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT: {
 		const enum retro_pixel_format *fmt = (enum retro_pixel_format *)data;
 
-		if (*fmt > RETRO_PIXEL_FORMAT_RGB565)
+		if (*fmt > RETRO_PIXEL_FORMAT_RGB565) {
+		    core_log(RETRO_LOG_DEBUG, "CORE DEBYG+ RETRO_PIXEL_FORMAT_RGB565");
 			return false;
+        }
+        core_log(RETRO_LOG_DEBUG, "CORE DEBYG+ adksjhkahdkj");
 
 		return video_set_pixel_format(*fmt);
 	}
+    case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
+        return false;
     case RETRO_ENVIRONMENT_SET_HW_RENDER: {
         struct retro_hw_render_callback *hw = (struct retro_hw_render_callback*)data;
         hw->get_current_framebuffer = core_get_current_framebuffer;
@@ -517,7 +314,8 @@ static bool core_environment(unsigned cmd, void *data) {
 
 
 static void core_video_refresh(const void *data, unsigned width, unsigned height, size_t pitch) {
-    video_refresh(data, width, height, pitch);
+    video_draw(data, width, height, pitch);
+    SDL_GL_SwapWindow(g_win);
 }
 
 
@@ -711,9 +509,6 @@ int main(int argc, char *argv[]) {
             case SDL_WINDOWEVENT:
                 switch (ev.window.event) {
                 case SDL_WINDOWEVENT_CLOSE: running = false; break;
-                case SDL_WINDOWEVENT_RESIZED:
-                    resize_cb(ev.window.data1, ev.window.data2);
-                    break;
                 }
             }
         }

@@ -219,8 +219,6 @@ static ShaderInfo shader;
 static GLuint buffers[3];
 static GLuint textures[2];
 
-//static int dis_width;
-//static int dis_height;
 static float proj[4][4];
 static float gmw, gmh;
 
@@ -289,6 +287,7 @@ void video_update_vertices(const struct retro_game_geometry *geom, uint32_t widt
 	float max_u = (float)width/geom->max_width;
 	float min_v = 0.0f;
 	float max_v = (float)width/geom->max_width;//(float)height/geom->max_height;
+	//float max_v = (float)height/geom->max_height;
 
 	uvs[0] = min_u;
 	uvs[1] = min_v;
@@ -337,9 +336,7 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	float sx = 1.0f, sy = 1.0f;
 	int h = geom->max_height;
 	int w = geom->max_width;
-	//dis_width = h;
-	//dis_height = w;
-	/*int rr=(screen_height*10/height);
+	int rr=(screen_height*10/height);
 	h = (height*rr)/10;
 	w = (width*rr)/10;
 	if (w>screen_width) {
@@ -347,8 +344,8 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	    h = (height*rr)/10;
 	    w = (width*rr)/10;
 	}
-	glViewport((screen_width-w)/2, (screen_height-h)/2, w, h);*/
-	glViewport(0, 0, screen_width, screen_height);
+	glViewport((screen_width-w)/2, (screen_height-h)/2, w, h);
+	//glViewport(0, 0, screen_width, screen_height);
 
 	float a = (float)screen_width/(float)screen_height;
 	float a0 = (float)geom->max_width/(float)geom->max_height;
@@ -356,7 +353,8 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 		sx = a0/a;
 	else
 		sy = a/a0;
-	SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, sx*op_zoom, sy*op_zoom);
+	//SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, sx*op_zoom, sy*op_zoom);
+	SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 void video_close()
@@ -393,7 +391,6 @@ void video_draw(const void *pixels, unsigned width, unsigned height, unsigned pi
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
 	}
 	glClear(GL_COLOR_BUFFER_BIT); SHOW_ERROR
-	//glViewport(0, 0, dis_width, dis_height); SHOW_ERROR
 
 	glDisable(GL_BLEND); SHOW_ERROR
 	glUseProgram(shader.program); SHOW_ERROR
