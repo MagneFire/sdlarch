@@ -18,25 +18,97 @@ uint32_t screen_height = 400;
 float m[4][4];
 
 
-#define	SHOW_ERROR		gles_show_error();
-static const char* vertex_shader =
-	"attribute vec2 a_position;						\n"
-	"attribute vec2 a_texcoord;						\n"
-	"varying vec2 v_texcoord;						\n"
-	"uniform mat4 u_vp_matrix;						\n"
-	"void main()								\n"
-	"{									\n"
-	"	v_texcoord = a_texcoord;					\n"
-	"	gl_Position = vec4(a_position, 0.0, 1.0) * u_vp_matrix;		\n"
-	"}									\n";
 
-static const char* fragment_shader =
-	"varying vec2 v_texcoord;						\n"
-	"uniform sampler2D u_texture;						\n"
-	"void main()								\n"
-	"{									\n"
-	"	gl_FragColor = texture2D(u_texture, v_texcoord);		\n"
-	"}									\n";
+//IMPORTANT, make sure this function is commented out at runtime
+//as it has a big performance impact!
+#define	SHOW_ERROR	gles_show_error();
+
+static const char* vertex_shader =
+    "uniform mat4 u_vp_matrix;                              \n"
+    "attribute vec4 a_position;                             \n"
+    "attribute vec2 a_texcoord;                             \n"
+    "varying mediump vec2 v_texcoord;                       \n"
+    "void main()                                            \n"
+    "{                                                      \n"
+    "   v_texcoord = a_texcoord;                            \n"
+    "   gl_Position = u_vp_matrix * a_position;             \n"
+    "}                                                      \n";
+
+static const char* fragment_shader_none =
+	"varying mediump vec2 v_texcoord;												\n"
+	"uniform sampler2D u_texture;													\n"
+	"void main()																	\n"
+	"{																				\n"
+	"	gl_FragColor = texture2D(u_texture, v_texcoord);							\n" 
+	"}																				\n";
+
+// scanline-3x.shader
+static const char* fragment_shader_scanline =
+	"uniform sampler2D u_texture; 													\n"
+	"varying mediump vec2 v_texcoord; 												\n"
+	"void main()     																\n"
+	"{																				\n"
+	"	vec4 rgb = texture2D(u_texture, v_texcoord);  								\n"
+	"	vec4 intens ;  																\n"
+	"	if (fract(gl_FragCoord.y * (0.5*4.0/3.0)) > 0.5)  							\n"
+	"		intens = vec4(0);  														\n"
+	"	else  																		\n"
+	"		intens = smoothstep(0.2,0.8,rgb) + normalize(vec4(rgb.xyz, 1.0));  		\n"
+	"	float level = (4.0-0.0) * 0.19;  											\n"
+	"	gl_FragColor = intens * (0.5-level) + rgb * 1.1 ;  							\n"
+	"} 																				\n";
+
+// Phospher effect shader, too slow to run at full speed on the RPI
+static const char* fragment_shader_phospher =
+    "uniform sampler2D u_texture; 														\n"
+	"vec2 rubyTextureSize=vec2(512.0,448.0);											\n"
+	"varying mediump vec2 v_texcoord; 													\n"
+	"																					\n"
+	"vec3 to_focus(float pixel)															\n"
+	"{																					\n"
+	"   pixel = mod(pixel + 3.0, 3.0);													\n"
+	"   if (pixel >= 2.0) // Blue														\n"
+	"      return vec3(pixel - 2.0, 0.0, 3.0 - pixel);									\n"
+	"   else if (pixel >= 1.0) // Green													\n"
+	"      return vec3(0.0, 2.0 - pixel, pixel - 1.0);									\n"
+	"   else // Red																		\n"
+	"      return vec3(1.0 - pixel, pixel, 0.0);										\n"
+	"}																					\n"
+	"																					\n"
+	"void main()																		\n"
+	"{																					\n"
+	"   float y = mod(v_texcoord.y * rubyTextureSize.y, 1.0);							\n"
+	"   float intensity = exp(-0.2 * y);												\n"
+	"   vec2 one_x = vec2(1.0 / (3.0 * rubyTextureSize.x), 0.0);						\n"
+	"   vec3 color = texture2D(u_texture, v_texcoord.xy - 0.0 * one_x).rgb;				\n"
+	"   vec3 color_prev = texture2D(u_texture, v_texcoord.xy - 1.0 * one_x).rgb;		\n"
+	"   vec3 color_prev_prev = texture2D(u_texture, v_texcoord.xy - 2.0 * one_x).rgb;	\n"
+	"   float pixel_x = 3.0 * v_texcoord.x * rubyTextureSize.x;							\n"
+	"   vec3 focus = to_focus(pixel_x - 0.0);											\n"
+	"   vec3 focus_prev = to_focus(pixel_x - 1.0);										\n"
+	"   vec3 focus_prev_prev = to_focus(pixel_x - 2.0);									\n"
+	"   vec3 result =																	\n"
+	"      0.8 * color * focus +														\n"
+	"      0.6 * color_prev * focus_prev +												\n"
+	"      0.3 * color_prev_prev * focus_prev_prev;										\n"
+	"   result = 2.3 * pow(result, vec3(1.4));											\n"
+	"   gl_FragColor = vec4(intensity * result, 1.0);									\n"
+	"}																					\n";
+
+// Bilinear smoothing, required when using palette as
+// automatic smoothing won't work.
+//static const char* fragment_shader_smooth =
+//	"varying mediump vec2 v_texcoord;												\n"
+//	"uniform sampler2D u_texture;													\n"
+//	"void main()																	\n"
+//	"{																				\n"
+//	"	vec4 p0 = texture2D(u_texture, v_texcoord);									\n" 
+//	"	vec4 p1 = texture2D(u_texture, v_texcoord + vec2(1.0/512.0, 0)); 			\n"
+//	"	vec4 p2 = texture2D(u_texture, v_texcoord + vec2(0, 1.0/256.0)); 			\n"
+//	"	vec4 p3 = texture2D(u_texture, v_texcoord + vec2(1.0/512.0, 1.0/256.0)); 	\n"
+//	"	vec2 l = vec2(fract(512.0*v_texcoord.x), fract(256.0*v_texcoord.y)); 		\n"
+//	"	gl_FragColor = mix(mix(c0, c1, l.x), mix(c2, c3, l.x), l.y); 				\n"
+//	"}																				\n";
 
 static const GLfloat vertices[] =
 {
@@ -46,11 +118,7 @@ static const GLfloat vertices[] =
 	-0.5f, +0.5f, 0.0f,
 };
 
-//#define	TEX_WIDTH	1024
-//#define	TEX_HEIGHT	512
-#define	TEX_WIDTH	g_video.tex_w
-#define	TEX_HEIGHT	g_video.tex_h
-
+//Values defined in gles2_create()
 static GLfloat uvs[8];
 
 static const GLushort indices[] =
@@ -61,14 +129,6 @@ static const GLushort indices[] =
 
 static const int kVertexCount = 4;
 static const int kIndexCount = 6;
-
-void Create_uvs(GLfloat * matrix, GLfloat max_u, GLfloat max_v) {
-    memset(matrix,0,sizeof(GLfloat)*8);
-    matrix[3]=max_v;
-    matrix[4]=max_u;
-    matrix[5]=max_v;
-    matrix[6]=max_u;
-}
 
 void gles_show_error()
 {
@@ -163,13 +223,19 @@ typedef	struct ShaderInfo {
 } ShaderInfo;
 
 static ShaderInfo shader;
-static ShaderInfo shader_filtering;
 static GLuint buffers[3];
+static GLuint textures[2];
 
-static GLfloat proj[4][4];
-static GLint filter_min;
-static GLint filter_mag;
+static int dis_width;
+static int dis_height;
+static float proj[4][4];
+static float tex_width, tex_height;
+static float gmw, gmh;
 
+
+#define TEX_WIDTH tex_width
+#define TEX_HEIGHT tex_height
+/*
 void video_set_filter(uint32_t filter) {
 	if (filter==0) {
 	    filter_min = GL_NEAREST;
@@ -178,7 +244,7 @@ void video_set_filter(uint32_t filter) {
 	    filter_min = GL_LINEAR;
 	    filter_mag = GL_LINEAR;
 	}
-}
+}*/
 
 static void gles2_destroy()
 {
@@ -216,7 +282,8 @@ void ortho2d(float m[4][4], float left, float right, float bottom, float top) {
 
 void video_shader_init() {
 	memset(&shader, 0, sizeof(ShaderInfo));
-	shader.program = CreateProgram(vertex_shader, fragment_shader);
+	shader.program = CreateProgram(vertex_shader, fragment_shader_none);
+	//shader.program = CreateProgram(vertex_shader, fragment_shader);
 	if(shader.program)
 	{
 		shader.a_position	= glGetAttribLocation(shader.program,	"a_position");
@@ -224,6 +291,7 @@ void video_shader_init() {
 		shader.u_vp_matrix	= glGetUniformLocation(shader.program,	"u_vp_matrix");
 		shader.u_texture	= glGetUniformLocation(shader.program,	"u_texture");
 	}
+	if(!shader.program) return;
 
 	glUniform1i(shader.u_texture, 0);
 
@@ -250,6 +318,8 @@ void video_update_vertices(const struct retro_game_geometry *geom, uint32_t widt
 #define	min_v		0.0f
 #define	max_v		(float)HEIGHT/TEX_HEIGHT*/
 	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
+	printf("width: %d\theight: %d\r\n", width, height);
+	printf("max_width: %d\tmax_height: %d\r\n", geom->max_width, geom->max_height);
 /*
 	GLfloat max_u = 1;//(float)screen_width/geom->max_width;
 	GLfloat max_v = 1;//(float)screen_height/geom->max_height;
@@ -294,7 +364,12 @@ void video_update_vertices(const struct retro_game_geometry *geom, uint32_t widt
 }
 
 void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t height, uint32_t filter) {
-
+	printf("video_init\r\n");
+	tex_width = width;
+	tex_height = height;
+	gmw = geom->max_width;
+	gmh = geom->max_height;
+	float op_zoom = (float)(width)/(float)width;
 	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
 	// OLD
@@ -308,6 +383,7 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEX_WIDTH, TEX_HEIGHT, 0, g_video.pixtype, g_video.pixfmt, NULL);
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, g_video.pixtype, g_video.pixfmt, NULL);
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, geom->max_width, geom->max_height, 0, g_video.pixtype, g_video.pixfmt, NULL);
 	//Create_uvs(uvs, (float)width/geom->max_width, (float)height/geom->max_height);
 
@@ -338,8 +414,11 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 
 	SDL_GetWindowSize(g_win, &screen_width, &screen_height);
 
+	float sx = 1.0f, sy = 1.0f;
 	int h = height;
 	int w = width;
+	dis_width = screen_width;
+	dis_height = screen_height;
 	/*int rr=(screen_height*10/height);
 	h = (height*rr)/10;
 	w = (width*rr)/10;
@@ -350,7 +429,14 @@ void video_init(const struct retro_game_geometry *geom, uint32_t width, uint32_t
 	}
 	glViewport((screen_width-w)/2, (screen_height-h)/2, w, h);*/
 	glViewport(0, 0, w, h);
-	SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, 1.0f ,1.0f );
+
+	float a = (float)screen_width/(float)screen_height;
+	float a0 = (float)width/(float)height;
+	if(a > a0)
+		sx = a0/a;
+	else
+		sy = a/a0;
+	SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, sx*op_zoom, sy*op_zoom);
 	//video_set_filter(filter);
 }
 
@@ -364,22 +450,90 @@ void video_close()
 	//eglTerminate( display );
 }
 
+static void gles2_DrawQuad(const ShaderInfo *sh)
+{
+	glUniform1i(sh->u_texture, 0); SHOW_ERROR
+/*
+	if (Settings.DisplaySmoothStretch) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); SHOW_ERROR 
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); SHOW_ERROR
+	}
+	else {*/
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); SHOW_ERROR 
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); SHOW_ERROR
+	//}
+
+	glBindBuffer(GL_ARRAY_BUFFER, buffers[0]); SHOW_ERROR
+	glVertexAttribPointer(sh->a_position, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL); SHOW_ERROR
+	glEnableVertexAttribArray(sh->a_position); SHOW_ERROR
+
+	glBindBuffer(GL_ARRAY_BUFFER, buffers[1]); SHOW_ERROR
+	glVertexAttribPointer(sh->a_texcoord, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), NULL); SHOW_ERROR
+	glEnableVertexAttribArray(sh->a_texcoord); SHOW_ERROR
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[2]); SHOW_ERROR
+
+	glDrawElements(GL_TRIANGLES, kIndexCount, GL_UNSIGNED_SHORT, 0); SHOW_ERROR
+}
+
+uint32_t henk = 0;
+
 void video_draw(const void *pixels, unsigned width, unsigned height, unsigned pitch)
 {
 	if(!shader.program)
 		return;
 
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	glUseProgram(shader.program);
-	// /printf("width: %d\theight: %d\r\n", width, height);
-
-	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
 	if (pitch != g_video.pitch) {
 		g_video.pitch = pitch;
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
 	}
+	glClear(GL_COLOR_BUFFER_BIT); SHOW_ERROR
+	glViewport(0, 0, dis_width, dis_height); SHOW_ERROR
+
+	glDisable(GL_BLEND); SHOW_ERROR
+	glUseProgram(shader.program); SHOW_ERROR
+	glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, &proj[0][0]); SHOW_ERROR
+
+	glActiveTexture(GL_TEXTURE0); SHOW_ERROR
+	glBindTexture(GL_TEXTURE_2D, g_video.tex_id); SHOW_ERROR
+	if (pixels && pixels != RETRO_HW_FRAME_BUFFER_VALID) {
+		if (henk < 1) {
+			
+		struct retro_system_av_info av = {0};
+		g_retro.retro_get_system_av_info(&av);
+		//video_init(&av.geometry, width, height, 0);
+		printf("width: %d\theight: %d\r\n", width, height);
+		//gmw = 0;
+		//gmh = 0;
+		henk++;
+
+		}
+		//SDL_SetWindowSize(g_win, width, height);
+    		/*SDL_DisplayMode mode;
+		SDL_GetWindowDisplayMode(g_win, &mode);
+		mode.h = height;
+		mode.w = width;
+		SDL_SetWindowDisplayMode(g_win, &mode);*/
+		//printf("%d %d\r\n", (int)(width-gmw)/2, (int)(height-gmh)/2);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, (int)(gmw-width)/2, (int)(gmh-height)/2, width, height, g_video.pixtype, g_video.pixfmt, pixels);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame_width, frame_height, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixels);
+	}
+	//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels); SHOW_ERROR
+	gles2_DrawQuad(&shader);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0); SHOW_ERROR
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); SHOW_ERROR
+
+
+	return;
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	glUseProgram(shader.program);
+
+	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
+
 
 	if (pixels && pixels != RETRO_HW_FRAME_BUFFER_VALID) {
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, g_video.pixtype, g_video.pixfmt, pixels);

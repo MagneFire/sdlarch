@@ -224,7 +224,7 @@ static void create_window(int width, int height) {
 //            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 //        break;
     default:
-        fprintf(stdout, "HENK!\r\n");
+        fprintf(stdout, "Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)\r\n", g_video.hw.context_type);
         //die("Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)", g_video.hw.context_type);
     }
 //SDL_WINDOW_FULLSCREEN
@@ -283,9 +283,10 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	nwidth *= g_scale;
 	nheight *= g_scale;
     printf("nwidth: %d\tnheight: %d\r\n", nwidth, nheight);
+	printf("max_width: %d\tmax_height: %d\r\n", geom->max_width, geom->max_height);
 
 	if (!g_win)
-		create_window(nwidth, nheight);
+		create_window(geom->max_width, geom->max_height);
 
 	if (g_video.tex_id)
 		glDeleteTextures(1, &g_video.tex_id);
@@ -325,7 +326,8 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	g_video.tex_h = geom->max_height;
 	g_video.clip_w = geom->base_width;
 	g_video.clip_h = geom->base_height;
-    video_init(geom, nwidth, nheight, 0);
+    //video_init(geom, geom->max_width, geom->max_height, 0);
+    video_init(geom, geom->max_width, geom->max_height, 0);
 
 	refresh_vertex_data();
 
@@ -367,6 +369,7 @@ static bool video_set_pixel_format(unsigned format) {
 static void video_refresh(const void *data, unsigned width, unsigned height, unsigned pitch) {
     if (g_video.clip_w != width || g_video.clip_h != height)
     {
+        printf("video_refresh: %d %d %d %d\r\n", g_video.clip_w, width, g_video.clip_h, height);
 		g_video.clip_h = height;
 		g_video.clip_w = width;
 

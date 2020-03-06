@@ -65,4 +65,4 @@ void video_shader_init();
 void video_init(const struct retro_game_geometry *geom, uint32_t width,uint32_t height, uint32_t f);
 void video_close();
 void video_draw(const void *pixels, unsigned width, unsigned height, unsigned pitch);
-void video_set_filter(uint32_t filter);
+//void video_set_filter(uint32_t filter);
