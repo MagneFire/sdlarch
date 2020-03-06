@@ -2,8 +2,9 @@
 #include <SDL.h>
 #include "libretro.h"
 #include "glad.h"
+#include "gles.h"
 
-static SDL_Window *g_win = NULL;
+SDL_Window *g_win = NULL;
 static SDL_GLContext *g_ctx = NULL;
 static SDL_AudioDeviceID g_pcm = 0;
 static struct retro_frame_time_callback runloop_frame_time;
@@ -11,32 +12,14 @@ static retro_usec_t runloop_frame_time_last = 0;
 static const uint8_t *g_kbd = NULL;
 static struct retro_audio_callback audio_callback;
 
-static float g_scale = 3;
+static float g_scale = 1;
 bool running = true;
 
-static struct {
-	GLuint tex_id;
-    GLuint fbo_id;
-    GLuint rbo_id;
-
-    int glmajor;
-    int glminor;
-
-
-	GLuint pitch;
-	GLint tex_w, tex_h;
-	GLuint clip_w, clip_h;
-
-	GLuint pixfmt;
-	GLuint pixtype;
-	GLuint bpp;
-
-    struct retro_hw_render_callback hw;
-} g_video  = {0};
+struct GVideo g_video  = {0};
 
 static struct {
-    GLuint vao;
-    GLuint vbo;
+    /*GLuint vao;
+    GLuint vbo;*/
     GLuint program;
 
     GLint i_pos;
@@ -46,52 +29,25 @@ static struct {
 
 } g_shader = {0};
 
-static const char *g_vshader_src =
-    "#version 150\n"
-    "in vec2 i_pos;\n"
-    "in vec2 i_coord;\n"
-    "out vec2 o_coord;\n"
-    "uniform mat4 u_mvp;\n"
-    "void main() {\n"
-        "o_coord = i_coord;\n"
-        "gl_Position = vec4(i_pos, 0.0, 1.0) * u_mvp;\n"
-    "}";
-
+static const char* g_vshader_src =
+	"attribute vec2 i_pos;								\n"
+	"attribute vec2 i_coord;								\n"
+	"varying vec2 o_coord;						\n"
+	"uniform mat4 u_mvp;								\n"
+	"void main()											\n"
+	"{														\n"
+	"	o_coord = i_coord;							\n"
+    "   gl_Position = vec4(i_pos, 0.0, 1.0) * u_mvp;\n"
+	"}														\n";
 static const char *g_fshader_src =
-    "#version 150\n"
-    "in vec2 o_coord;\n"
+    "varying vec2 o_coord;\n"
     "uniform sampler2D u_tex;\n"
     "void main() {\n"
         "gl_FragColor = texture2D(u_tex, o_coord);\n"
     "}";
-
-
-
-
-static struct {
-	void *handle;
-	bool initialized;
-
-	void (*retro_init)(void);
-	void (*retro_deinit)(void);
-	unsigned (*retro_api_version)(void);
-	void (*retro_get_system_info)(struct retro_system_info *info);
-	void (*retro_get_system_av_info)(struct retro_system_av_info *info);
-	void (*retro_set_controller_port_device)(unsigned port, unsigned device);
-	void (*retro_reset)(void);
-	void (*retro_run)(void);
-//	size_t retro_serialize_size(void);
-//	bool retro_serialize(void *data, size_t size);
-//	bool retro_unserialize(const void *data, size_t size);
-//	void retro_cheat_reset(void);
-//	void retro_cheat_set(unsigned index, bool enabled, const char *code);
-	bool (*retro_load_game)(const struct retro_game_info *game);
-//	bool retro_load_game_special(unsigned game_type, const struct retro_game_info *info, size_t num_info);
-	void (*retro_unload_game)(void);
-//	unsigned retro_get_region(void);
-//	void *retro_get_memory_data(unsigned id);
-//	size_t retro_get_memory_size(unsigned id);
-} g_retro;
+    
+    
+struct GRetro g_retro;
 
 
 struct keymap {
@@ -156,21 +112,6 @@ static GLuint compile_shader(unsigned type, unsigned count, const char **strings
     return shader;
 }
 
-void ortho2d(float m[4][4], float left, float right, float bottom, float top) {
-    m[0][0] = 1; m[0][1] = 0; m[0][2] = 0; m[0][3] = 0;
-    m[1][0] = 0; m[1][1] = 1; m[1][2] = 0; m[1][3] = 0;
-    m[2][0] = 0; m[2][1] = 0; m[2][2] = 1; m[2][3] = 0;
-    m[3][0] = 0; m[3][1] = 0; m[3][2] = 0; m[3][3] = 1;
-
-    m[0][0] = 2.0f / (right - left);
-    m[1][1] = 2.0f / (top - bottom);
-    m[2][2] = -1.0f;
-    m[3][0] = -(right + left) / (right - left);
-    m[3][1] = -(top + bottom) / (top - bottom);
-}
-
-
-
 static void init_shaders() {
     GLuint vshader = compile_shader(GL_VERTEX_SHADER, 1, &g_vshader_src);
     GLuint fshader = compile_shader(GL_FRAGMENT_SHADER, 1, &g_fshader_src);
@@ -202,8 +143,8 @@ static void init_shaders() {
     g_shader.u_tex   = glGetUniformLocation(program, "u_tex");
     g_shader.u_mvp   = glGetUniformLocation(program, "u_mvp");
 
-    glGenVertexArrays(1, &g_shader.vao);
-    glGenBuffers(1, &g_shader.vbo);
+    //glGenVertexArrays(1, &g_shader.vao);
+    //glGenBuffers(1, &g_shader.vbo);
 
     glUseProgram(g_shader.program);
 
@@ -229,17 +170,17 @@ static void refresh_vertex_data() {
 
     float bottom = (float)g_video.clip_h / g_video.tex_h;
     float right  = (float)g_video.clip_w / g_video.tex_w;
-
+/*
     float vertex_data[] = {
         // pos, coord
         -1.0f, -1.0f, 0.0f,  bottom, // left-bottom
         -1.0f,  1.0f, 0.0f,  0.0f,   // left-top
          1.0f, -1.0f, right,  bottom,// right-bottom
          1.0f,  1.0f, right,  0.0f,  // right-top
-    };
+    };*/
 
-    glBindVertexArray(g_shader.vao);
-
+    //glBindVertexArray(g_shader.vao);
+/*
     glBindBuffer(GL_ARRAY_BUFFER, g_shader.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_data), vertex_data, GL_STREAM_DRAW);
 
@@ -248,44 +189,9 @@ static void refresh_vertex_data() {
     glVertexAttribPointer(g_shader.i_pos, 2, GL_FLOAT, GL_FALSE, sizeof(float)*4, 0);
     glVertexAttribPointer(g_shader.i_coord, 2, GL_FLOAT, GL_FALSE, sizeof(float)*4, (void*)(2 * sizeof(float)));
 
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    //glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);*/
 }
-
-static void init_framebuffer(int width, int height)
-{
-    glGenFramebuffers(1, &g_video.fbo_id);
-    glBindFramebuffer(GL_FRAMEBUFFER, g_video.fbo_id);
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_video.tex_id, 0);
-
-    if (g_video.hw.depth && g_video.hw.stencil) {
-        glGenRenderbuffers(1, &g_video.rbo_id);
-        glBindRenderbuffer(GL_RENDERBUFFER, g_video.rbo_id);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, g_video.rbo_id);
-    } else if (g_video.hw.depth) {
-        glGenRenderbuffers(1, &g_video.rbo_id);
-        glBindRenderbuffer(GL_RENDERBUFFER, g_video.rbo_id);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
-
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, g_video.rbo_id);
-    }
-
-    if (g_video.hw.depth || g_video.hw.stencil)
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-    SDL_assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-
-    glClearColor(0, 0, 0, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
 
 static void resize_cb(int w, int h) {
 	glViewport(0, 0, w, h);
@@ -298,28 +204,31 @@ static void create_window(int width, int height) {
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
-    if (g_video.hw.context_type == RETRO_HW_CONTEXT_OPENGL_CORE || g_video.hw.version_major >= 3) {
+
+  /*  if (g_video.hw.context_type == RETRO_HW_CONTEXT_OPENGL_CORE || g_video.hw.version_major >= 3) {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, g_video.hw.version_major);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, g_video.hw.version_minor);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
     }
+*/
 
     switch (g_video.hw.context_type) {
-    case RETRO_HW_CONTEXT_OPENGL_CORE:
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        break;
+//    case RETRO_HW_CONTEXT_OPENGL_CORE:
+//        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+//        break;
     case RETRO_HW_CONTEXT_OPENGLES2:
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
         break;
-    case RETRO_HW_CONTEXT_OPENGL:
-        if (g_video.hw.version_major >= 3)
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-        break;
+//    case RETRO_HW_CONTEXT_OPENGL:
+//        if (g_video.hw.version_major >= 3)
+//            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+//        break;
     default:
-        die("Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)", g_video.hw.context_type);
+        fprintf(stdout, "HENK!\r\n");
+        //die("Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)", g_video.hw.context_type);
     }
-
-    g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL);
+//SDL_WINDOW_FULLSCREEN
+        g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
 
 	if (!g_win)
         die("Failed to create window: %s", SDL_GetError());
@@ -341,12 +250,14 @@ static void create_window(int width, int height) {
     fprintf(stderr, "GL_VERSION: %s\n", glGetString(GL_VERSION));
 
 
-    init_shaders();
+    //init_shaders();
+    video_shader_init();
+    //video_init(width, height, 0);
 
     SDL_GL_SetSwapInterval(1);
     SDL_GL_SwapWindow(g_win); // make apitrace output nicer
 
-    resize_cb(width, height);
+    //resize_cb(width, height);
 }
 
 
@@ -371,6 +282,7 @@ static void video_configure(const struct retro_game_geometry *geom) {
 
 	nwidth *= g_scale;
 	nheight *= g_scale;
+    printf("nwidth: %d\tnheight: %d\r\n", nwidth, nheight);
 
 	if (!g_win)
 		create_window(nwidth, nheight);
@@ -383,7 +295,6 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	if (!g_video.pixfmt)
 		g_video.pixfmt = GL_UNSIGNED_SHORT_5_5_5_1;
 
-    SDL_SetWindowSize(g_win, nwidth, nheight);
 
 	glGenTextures(1, &g_video.tex_id);
 
@@ -391,9 +302,8 @@ static void video_configure(const struct retro_game_geometry *geom) {
 		die("Failed to create the video texture");
 
 	g_video.pitch = geom->base_width * g_video.bpp;
-
+/*
 	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
-
 //	glPixelStorei(GL_UNPACK_ALIGNMENT, s_video.pixfmt == GL_UNSIGNED_INT_8_8_8_8_REV ? 4 : 2);
 //	glPixelStorei(GL_UNPACK_ROW_LENGTH, s_video.pitch / s_video.bpp);
 
@@ -403,14 +313,19 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, geom->max_width, geom->max_height, 0,
 			g_video.pixtype, g_video.pixfmt, NULL);
 
-	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);*/
 
-    init_framebuffer(geom->base_width, geom->base_height);
+
+
+
+
+    //init_framebuffer(geom->base_width, geom->base_height);
 
 	g_video.tex_w = geom->max_width;
 	g_video.tex_h = geom->max_height;
 	g_video.clip_w = geom->base_width;
 	g_video.clip_h = geom->base_height;
+    video_init(geom, nwidth, nheight, 0);
 
 	refresh_vertex_data();
 
@@ -424,16 +339,19 @@ static bool video_set_pixel_format(unsigned format) {
 
 	switch (format) {
 	case RETRO_PIXEL_FORMAT_0RGB1555:
+        printf("GL_UNSIGNED_SHORT_5_5_5_1\r\n");
 		g_video.pixfmt = GL_UNSIGNED_SHORT_5_5_5_1;
 		g_video.pixtype = GL_BGRA;
 		g_video.bpp = sizeof(uint16_t);
 		break;
 	case RETRO_PIXEL_FORMAT_XRGB8888:
+        printf("GL_UNSIGNED_INT_8_8_8_8_REV\r\n");
 		g_video.pixfmt = GL_UNSIGNED_INT_8_8_8_8_REV;
 		g_video.pixtype = GL_BGRA;
 		g_video.bpp = sizeof(uint32_t);
 		break;
 	case RETRO_PIXEL_FORMAT_RGB565:
+        printf("GL_UNSIGNED_SHORT_5_6_5\r\n");
 		g_video.pixfmt  = GL_UNSIGNED_SHORT_5_6_5;
 		g_video.pixtype = GL_RGB;
 		g_video.bpp = sizeof(uint16_t);
@@ -455,13 +373,15 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
 		refresh_vertex_data();
 	}
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    video_draw(data, width, height, pitch);
+/*
+    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
-	if (pitch != g_video.pitch) {
-		g_video.pitch = pitch;
-		glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
-	}
+	//if (pitch != g_video.pitch) {
+	//	g_video.pitch = pitch;
+	//	glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
+	//}
 
     if (data && data != RETRO_HW_FRAME_BUFFER_VALID) {
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
@@ -480,11 +400,11 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
     glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
 
-    glBindVertexArray(g_shader.vao);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glBindVertexArray(0);
+    //glBindVertexArray(g_shader.vao);
+    //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    //glBindVertexArray(0);
 
-    glUseProgram(0);
+    glUseProgram(0);*/
 
     SDL_GL_SwapWindow(g_win);
 }
@@ -805,7 +725,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        //glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		g_retro.retro_run();
 	}
 

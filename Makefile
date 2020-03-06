@@ -1,5 +1,5 @@
 target   := sdlarch
-sources  := sdlarch.c glad.c
+sources  := sdlarch.c glad.c gles.c
 CFLAGS   := -Wall -g
 LFLAGS   := -static-libgcc
 LIBS     := 
@@ -7,11 +7,11 @@ packages := sdl2
 
 # do not edit from here onwards
 objects := $(addprefix build/,$(sources:.c=.o))
-ifneq ($(packages),)
-    LIBS    += $(shell pkg-config --libs-only-l $(packages))
-    LFLAGS  += $(shell pkg-config --libs-only-L --libs-only-other $(packages))
-    CFLAGS  += $(shell pkg-config --cflags $(packages))
-endif
+#ifneq ($(packages),)
+LIBS    += $(shell pkg-config --libs-only-l $(packages)) -lGLESv2 -lEGL
+LFLAGS  += $(shell pkg-config --libs-only-L --libs-only-other $(packages))
+CFLAGS  += $(shell pkg-config --cflags $(packages))
+#endif
 
 .PHONY: all clean
 
